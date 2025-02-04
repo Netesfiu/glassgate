@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Üvegkapu - Adatok</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="uvegkapu-styles.css">
+    <script src="https://unpkg.com/html5-qrcode"></script>
+</head>
+<body>
+    <div class="container uvegkapu-container">
+        <nav class="navigation">
+            <a href="/" class="nav-link">QR Generátor</a>
+            <a href="/uvegkapu.html" class="nav-link active">Üvegkapu</a>
+        </nav>
+        
+        <h1>Üvegkapu Adatok</h1>
+        
+        <div class="upload-section">
+            <div class="upload-box pdf-drop-zone">
+                <h3>PDF Dokumentum Feltöltése</h3>
+                <p class="drop-text">Húzza ide a PDF fájlt, vagy kattintson a kiválasztáshoz</p>
+                <p class="info-text" style="color: #666; font-size: 0.9rem; margin-top: 0.5rem;">
+                    A PDF-ből az adatok automatikusan beolvasásra kerülnek. Ezután kérjük, olvassa be a QR kódot a dokumentumról a kamera használatával vagy kép feltöltésével.
+                </p>
+                <input type="file" id="pdf-upload" accept=".pdf" class="file-input">
+                <button id="process-pdf-btn">
+                    <span class="button-text">Dokumentum Feldolgozása</span>
+                    <div class="loading-spinner" style="display: none;"></div>
+                </button>
+                <div class="processing-status" style="display: none;">
+                    <div class="loading-spinner"></div>
+                    <span>Dokumentum feldolgozása...</span>
+                </div>
+            </div>
+            
+            <div class="upload-box qr-drop-zone">
+                <h3>QR Kód Beolvasása</h3>
+                <div id="qr-reader"></div>
+                <p class="drop-text">Húzza ide a képet, vagy kattintson a kiválasztáshoz</p>
+                <p class="info-text" style="color: #666; font-size: 0.9rem; margin-top: 0.5rem;">
+                    Olvassa be a QR kódot a dokumentumról a kamera használatával vagy kép feltöltésével. A QR kód beolvasása szükséges a kártya elkészítéséhez.
+                </p>
+                <input type="file" id="qr-image-upload" accept="image/*" class="file-input">
+                <button id="start-camera-btn">Kamera Használata</button>
+                <div class="processing-status" style="display: none;">
+                    <div class="loading-spinner"></div>
+                    <span>QR kód beolvasása...</span>
+                </div>
+            </div>
+        </div>
+
+        <form id="data-form" class="data-form">
+            <div class="form-group">
+                <label for="name">Név:</label>
+                <input type="text" id="name" name="name" value="Példa Név">
+            </div>
+
+            <div class="form-group">
+                <label for="identifier">Azonosító:</label>
+                <input type="text" id="identifier" name="identifier" value="1234567890">
+            </div>
+
+            <div class="form-group">
+                <label for="employment-type">Foglalkoztatás típusa:</label>
+                <input type="text" id="employment-type" name="employment-type" value="Pozíció">
+            </div>
+
+            <div class="form-group">
+                <label for="contract-type">Szerződés típusa:</label>
+                <input type="text" id="contract-type" name="contract-type" value="Szerződés típus">
+            </div>
+
+            <div class="form-group">
+                <label for="project-name">Projekt neve:</label>
+                <textarea id="project-name" name="project-name">Projekt leírása és helyszíne</textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="company-name">Cég neve:</label>
+                <input type="text" id="company-name" name="company-name" value="Példa Kft.">
+            </div>
+
+            <div class="form-group">
+                <label for="company-id">Cég azonosító:</label>
+                <input type="text" id="company-id" name="company-id">
+            </div>
+
+            <div class="form-group">
+                <label for="qr-code-id">QR Kód azonosító:</label>
+                <input type="text" id="qr-code-id" name="qr-code-id" readonly>
+            </div>
+
+            <div class="qr-preview">
+                <img id="qr-preview" src="" alt="QR kód előnézet" style="display: none;">
+            </div>
+
+            <button type="submit" id="save-btn">Adatok Mentése</button>
+        </form>
+    </div>
+    <script src="uvegkapu-script.js"></script>
+</body>
+</html>
