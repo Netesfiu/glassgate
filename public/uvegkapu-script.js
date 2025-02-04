@@ -14,27 +14,68 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Drag and drop handling
     function setupDragAndDrop(dropZone, fileInput, acceptedTypes, processFile) {
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('drag-over');
+        const dropText = dropZone.querySelector('.drop-text');
+        const selectedFile = dropZone.querySelector('.selected-file');
+
+        function updateSelectedFile(file) {
+            if (file) {
+                selectedFile.textContent = `Kiválasztott fájl: ${file.name}`;
+                selectedFile.classList.add('visible');
+            } else {
+                selectedFile.textContent = '';
+                selectedFile.classList.remove('visible');
+            }
+        }
+
+        // Add click handler to trigger file input
+        dropText.addEventListener('click', () => {
+            fileInput.click();
         });
 
-        dropZone.addEventListener('dragleave', () => {
-            dropZone.classList.remove('drag-over');
+        // Listen for file input changes
+        fileInput.addEventListener('change', () => {
+            const file = fileInput.files[0];
+            if (file) {
+                updateSelectedFile(file);
+            }
         });
 
-        dropZone.addEventListener('drop', async (e) => {
+        dropText.addEventListener('dragover', (e) => {
             e.preventDefault();
-            dropZone.classList.remove('drag-over');
+            e.stopPropagation();
+            dropText.classList.add('drag-over');
+        });
+
+        dropText.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropText.classList.remove('drag-over');
+        });
+
+        dropText.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropText.classList.remove('drag-over');
             
             const file = e.dataTransfer.files[0];
             if (file && acceptedTypes.includes(file.type)) {
+                updateSelectedFile(file);
                 await processFile(file);
             } else {
                 alert('Nem megfelelő fájltípus!');
             }
         });
 
+        // Prevent drag events on the rest of the box
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
     }
 
     // Show/hide loading states
@@ -153,6 +194,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const file = e.target.files[0];
         if (!file) return;
 
+        const selectedFile = qrDropZone.querySelector('.selected-file');
+        selectedFile.textContent = `Kiválasztott fájl: ${file.name}`;
+        selectedFile.classList.add('visible');
+
         showProcessingStatus('qr');
         try {
             const result = await html5QrCode.scanFile(file, true);
@@ -160,6 +205,8 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error('Error:', error);
             alert('Nem sikerült beolvasni a QR kódot a képről.');
+            selectedFile.textContent = '';
+            selectedFile.classList.remove('visible');
         } finally {
             hideProcessingStatus('qr');
         }
@@ -167,16 +214,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Camera Handling
     startCameraBtn.addEventListener('click', async () => {
+        const qrReader = document.getElementById('qr-reader');
         if (isScanning) {
             await stopScanning();
             startCameraBtn.textContent = 'Kamera Használata';
+            qrReader.classList.remove('active');
         } else {
             try {
+                qrReader.classList.add('active');
                 await startScanning();
                 startCameraBtn.textContent = 'Kamera Leállítása';
             } catch (error) {
                 console.error('Error:', error);
                 alert('Nem sikerült elindítani a kamerát.');
+                qrReader.classList.remove('active');
             }
         }
     });
@@ -203,6 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             await html5QrCode.stop();
             isScanning = false;
+            document.getElementById('qr-reader').classList.remove('active');
         } catch (error) {
             console.error('Error stopping camera:', error);
         }

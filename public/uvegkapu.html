@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Üvegkapu - Adatok</title>
+    <title>Üvegkapu - Kártya generátor</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="uvegkapu-styles.css">
     <script src="https://unpkg.com/html5-qrcode"></script>
@@ -20,7 +20,10 @@
         <div class="upload-section">
             <div class="upload-box pdf-drop-zone">
                 <h3>PDF Dokumentum Feltöltése</h3>
-                <p class="drop-text">Húzza ide a PDF fájlt, vagy kattintson a kiválasztáshoz</p>
+                <div class="drop-area">
+                    <p class="drop-text">Húzza ide a PDF fájlt, vagy kattintson a kiválasztáshoz</p>
+                    <p class="selected-file"></p>
+                </div>
                 <p class="info-text" style="color: #666; font-size: 0.9rem; margin-top: 0.5rem;">
                     A PDF-ből az adatok automatikusan beolvasásra kerülnek. Ezután kérjük, olvassa be a QR kódot a dokumentumról a kamera használatával vagy kép feltöltésével.
                 </p>
@@ -38,7 +41,10 @@
             <div class="upload-box qr-drop-zone">
                 <h3>QR Kód Beolvasása</h3>
                 <div id="qr-reader"></div>
-                <p class="drop-text">Húzza ide a képet, vagy kattintson a kiválasztáshoz</p>
+                <div class="drop-area">
+                    <p class="drop-text">Húzza ide a képet, vagy kattintson a kiválasztáshoz</p>
+                    <p class="selected-file"></p>
+                </div>
                 <p class="info-text" style="color: #666; font-size: 0.9rem; margin-top: 0.5rem;">
                     Olvassa be a QR kódot a dokumentumról a kamera használatával vagy kép feltöltésével. A QR kód beolvasása szükséges a kártya elkészítéséhez.
                 </p>
