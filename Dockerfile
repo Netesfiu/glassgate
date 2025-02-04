@@ -1,12 +1,22 @@
-# Build stage
 FROM node:18-alpine AS builder
 
-# Create app directory
+# Install only the necessary build dependencies
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    cairo-dev \
+    pango-dev \
+    jpeg-dev \
+    giflib-dev
+
 WORKDIR /app
 
-# Install dependencies
+# Install dependencies - split this to leverage Docker cache
 COPY package*.json ./
-RUN npm ci
+
+# Use npm install with modern flags to speed up installation
+RUN npm ci --omit=dev --omit=optional --no-audit
 
 # Copy source
 COPY . .
@@ -14,38 +24,24 @@ COPY . .
 # Production stage
 FROM node:18-alpine
 
-# Install only required system dependencies
+# Install only the runtime dependencies needed for canvas
 RUN apk add --no-cache \
-    fontconfig \
-    freetype \
-    freetype-dev \
-    g++ \
-    jpeg-dev \
-    libpng-dev \
-    make \
-    python3
+    cairo \
+    pango \
+    jpeg \
+    giflib
 
-# Create app directory
 WORKDIR /app
 
-# Copy built node modules and source
+# Copy only the necessary files from builder
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app .
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/server.js .
+COPY --from=builder /app/package.json .
 
-# Create uploads directory
-RUN mkdir -p uploads && \
-    # Set proper permissions
-    chown -R node:node /app
+# Create non-root user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+USER appuser
 
-# Switch to non-root user
-USER node
-
-# Expose port
 EXPOSE 3000
-
-# Set environment variables
-ENV NODE_ENV=production \
-    PORT=3000
-
-# Start the server
 CMD ["node", "server.js"]
