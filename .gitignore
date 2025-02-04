@@ -26,6 +26,9 @@ dist/
 build/
 *.tar.gz
 
+# PDF files
+*.pdf
+
 # IDE and editor files
 .idea/
 .vscode/
