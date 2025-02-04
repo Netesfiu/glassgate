@@ -1,0 +1,34 @@
+# Fejlesztői környezet beállítása
+FROM node:18-bullseye-slim
+
+# Fejlesztői mód beállítása
+ENV NODE_ENV=development
+
+# Build és futásidejű függőségek telepítése
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libcairo2 \
+    libpango1.0-0 \
+    libjpeg62-turbo \
+    libgif7 \
+    build-essential \
+    python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Package fájlok másolása
+COPY package*.json ./
+
+# Minden függőség telepítése, beleértve a fejlesztői függőségeket is
+RUN npm install
+
+# Alkalmazás fájlok másolása
+COPY . .
+
+# Nem root felhasználó létrehozása
+RUN groupadd -r appgroup && useradd -r -g appgroup appuser \
+    && chown -R appuser:appgroup /app
+USER appuser
+
+EXPOSE 3000
+CMD ["node", "server.js"]

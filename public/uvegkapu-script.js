@@ -2,7 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const html5QrCode = new Html5Qrcode("qr-reader");
     let isScanning = false;
 
-    // Elements
+    // Elemek
     const form = document.getElementById('data-form');
     const pdfUpload = document.getElementById('pdf-upload');
     const processPdfBtn = document.getElementById('process-pdf-btn');
@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const pdfDropZone = document.querySelector('.pdf-drop-zone');
     const qrDropZone = document.querySelector('.qr-drop-zone');
 
-    // Drag and drop handling
+    // Húzd és ejtsd kezelése
     function setupDragAndDrop(dropZone, fileInput, acceptedTypes, processFile) {
         const dropText = dropZone.querySelector('.drop-text');
         const selectedFile = dropZone.querySelector('.selected-file');
@@ -27,12 +27,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // Add click handler to trigger file input
+        // Kattintás kezelő hozzáadása a fájl kiválasztáshoz
         dropText.addEventListener('click', () => {
             fileInput.click();
         });
 
-        // Listen for file input changes
+        // Fájl kiválasztás változásainak figyelése
         fileInput.addEventListener('change', () => {
             const file = fileInput.files[0];
             if (file) {
@@ -66,7 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // Prevent drag events on the rest of the box
+        // Húzás események megakadályozása a doboz többi részén
         dropZone.addEventListener('dragover', (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -78,7 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Show/hide loading states
+    // Betöltési állapotok megjelenítése/elrejtése
     function showProcessingStatus(type) {
         const container = type === 'pdf' ? pdfDropZone : qrDropZone;
         const status = container.querySelector('.processing-status');
@@ -103,7 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (status) status.style.display = 'none';
     }
 
-    // Setup drag-n-drop for PDF
+    // PDF húzd és ejtsd beállítása
     setupDragAndDrop(
         pdfDropZone,
         pdfUpload,
@@ -122,7 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
             fillFormWithData(data);
             
-            // Show success message with next steps
+            // Sikeres üzenet megjelenítése a következő lépésekkel
             const message = 'A PDF adatai sikeresen beolvasva!\n\n' +
                           'A biztonság érdekében az érzékeny adatok rejtve maradnak.\n\n' +
                           'Következő lépés: Olvassa be a QR kódot a dokumentumról\n' +
@@ -138,7 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     );
 
-    // Setup drag-n-drop for QR images
+    // QR képek húzd és ejtsd beállítása
     setupDragAndDrop(
         qrDropZone,
         qrImageUpload,
@@ -157,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     );
 
-    // PDF Processing
+    // PDF feldolgozás
     processPdfBtn.addEventListener('click', async () => {
         const file = pdfUpload.files[0];
         if (!file) {
@@ -189,7 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // QR Code Image Processing
+    // QR kód kép feldolgozása
     qrImageUpload.addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -212,7 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Camera Handling
+    // Kamera kezelése
     startCameraBtn.addEventListener('click', async () => {
         const qrReader = document.getElementById('qr-reader');
         if (isScanning) {
@@ -262,13 +262,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleQrCodeResult(decodedText) {
         try {
-            console.log('QR Code Content:', decodedText); // Debug log
+            console.log('QR Kód Tartalom:', decodedText); // Debug napló
             
-            // Always store the raw QR code content
+            // Mindig tároljuk a nyers QR kód tartalmat
             const qrCodeField = document.getElementById('qr-code-id');
             qrCodeField.value = decodedText;
             
-            // Get the current form data
+            // Aktuális űrlap adatok lekérése
             const currentData = {
                 name: document.getElementById('name').value,
                 identifier: document.getElementById('identifier').value,
@@ -280,12 +280,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 qrCodeId: decodedText
             };
 
-            // Try to parse as JSON, but don't overwrite if parsing fails
+            // JSON-ként próbáljuk értelmezni, de ne írjuk felül, ha nem sikerül
             try {
                 const jsonData = JSON.parse(decodedText);
                 fillFormWithData(jsonData);
             } catch (jsonError) {
-                // If not JSON, keep the current form data but update QR code ID
+                // Ha nem JSON, tartsuk meg az aktuális űrlap adatokat, de frissítsük a QR kód azonosítót
                 fillFormWithData(currentData);
             }
 
@@ -300,7 +300,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function fillFormWithData(data) {
-        // Fill form fields
+        // Űrlap mezők kitöltése
         const fields = {
             'name': data.name,
             'identifier': data.identifier,
@@ -316,7 +316,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const element = document.getElementById(id);
             if (element && value) {
                 element.value = value;
-                // Make fields readonly except for QR code
+                // Mezők csak olvashatóvá tétele, kivéve a QR kódot
                 if (id !== 'qr-code-id') {
                     element.readOnly = true;
                     element.style.backgroundColor = '#f8f8f8';
@@ -324,22 +324,22 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // Update preview if available
+        // Előnézet frissítése, ha elérhető
         if (data.cardImage) {
             qrPreview.src = data.cardImage;
             qrPreview.style.display = 'block';
-            qrPreview.style.maxWidth = '100%'; // Allow preview to be wider
+            qrPreview.style.maxWidth = '100%'; // Előnézet szélesebb lehet
             qrPreview.style.height = 'auto';
             qrPreview.style.marginTop = '2rem';
             qrPreview.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.1)';
         }
     }
 
-    // Form Submission
+    // Űrlap beküldése
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
 
-        // Check if QR code is present
+        // QR kód meglétének ellenőrzése
         const qrCodeId = document.getElementById('qr-code-id').value;
         if (!qrCodeId) {
             alert('Kérjük, először olvassa be a QR kódot a dokumentumról!');
@@ -379,7 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 qrPreview.style.marginTop = '2rem';
                 qrPreview.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.1)';
                 
-                // Create download link
+                // Letöltési link létrehozása
                 const downloadLink = document.createElement('a');
                 downloadLink.href = result.cardImage;
                 downloadLink.download = 'uvegkapu-kartya.png';
@@ -395,7 +395,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 downloadLink.style.borderRadius = '5px';
                 downloadLink.style.cursor = 'pointer';
                 
-                // Replace old download button if exists
+                // Régi letöltési gomb cseréje, ha létezik
                 const oldDownloadBtn = document.querySelector('.download-card-btn');
                 if (oldDownloadBtn) {
                     oldDownloadBtn.remove();

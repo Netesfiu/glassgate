@@ -8,16 +8,16 @@ const { createCanvas, registerFont } = require('canvas');
 const sharp = require('sharp');
 const pdfParse = require('pdf-parse');
 
-// Create logs directory if it doesn't exist
+// Logs könyvtár létrehozása, ha nem létezik
 const logsDir = path.join(__dirname, 'logs');
 if (!fs.existsSync(logsDir)) {
     fs.mkdirSync(logsDir);
 }
 
-// Development mode flag
+// Fejlesztői mód jelző
 const isDev = process.env.NODE_ENV !== 'production';
 
-// Logger function
+// Naplózó függvény
 function log(type, message, data = {}) {
     const timestamp = new Date().toISOString();
     const logData = {
@@ -27,41 +27,41 @@ function log(type, message, data = {}) {
         ...data
     };
 
-    // In dev mode, keep all data for debugging
+    // Fejlesztői módban minden adat megtartása hibakereséshez
     if (!isDev) {
-        // Redact sensitive information in production
+        // Érzékeny információk elrejtése produkciós környezetben
         if (logData.name) logData.name = 'REDACTED';
         if (logData.identifier) logData.identifier = 'REDACTED';
         if (logData.error?.stack) delete logData.error.stack;
     }
 
-    // Format log entry
+    // Napló bejegyzés formázása
     const logEntry = JSON.stringify(logData) + '\n';
     fs.appendFileSync(path.join(logsDir, isDev ? 'debug.log' : 'app.log'), logEntry);
 
-    // In dev mode, also log to console for debugging
+    // Fejlesztői módban konzolra is naplózás hibakereséshez
     if (isDev) {
         console.log(`[${type.toUpperCase()}] ${message}`, data);
     }
 }
 
-// Debug logger - only logs in dev mode
+// Debug naplózó - csak fejlesztői módban naplóz
 function debug(message, data = {}) {
     if (isDev) {
         log('debug', message, data);
     }
 }
 
-// Standard credit card dimensions at 300 DPI
-const CARD_WIDTH = 1050;  // 89mm at 300 DPI
-const CARD_HEIGHT = 600;  // 51mm at 300 DPI
-const QR_SIZE = 250;      // QR code size in pixels
-const MARGIN = 50;        // Margin in pixels
+// Szabványos bankkártya méretek 300 DPI felbontásnál
+const CARD_WIDTH = 1050;  // 89mm 300 DPI-nél
+const CARD_HEIGHT = 600;  // 51mm 300 DPI-nél
+const QR_SIZE = 250;      // QR kód mérete pixelben
+const MARGIN = 50;        // Margó pixelben
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Configure multer for file uploads
+// Multer konfigurálása fájl feltöltésekhez
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: {
@@ -69,11 +69,11 @@ const upload = multer({
     }
 });
 
-// Middleware
+// Middleware-ek
 app.use(bodyParser.json());
 app.use(express.static('public'));
 
-// API endpoint for QR code generation
+// API végpont QR kód generáláshoz
 app.post('/generate', async (req, res) => {
     try {
         const { text, displayText } = req.body;
@@ -88,11 +88,11 @@ app.post('/generate', async (req, res) => {
         const canvas = createCanvas(350, canvasHeight);
         const ctx = canvas.getContext('2d');
 
-        // Set white background
+// Fehér háttér beállítása
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Generate QR code
+// QR kód generálása
         const qrCodeDataUrl = await QRCode.toDataURL(text, {
             width: qrSize,
             margin: 0,
@@ -102,18 +102,18 @@ app.post('/generate', async (req, res) => {
             }
         });
 
-        // Load and draw QR code
+// QR kód betöltése és rajzolása
         const qrImage = await loadImage(qrCodeDataUrl);
         ctx.drawImage(qrImage, 25, 25, qrSize, qrSize);
 
-        // Add text if provided
+// Szöveg hozzáadása, ha meg van adva
         if (displayText) {
             ctx.font = 'bold 16px Arial';
             ctx.fillStyle = '#000000';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
 
-            // Word wrap text
+// Szöveg tördelése
             const maxWidth = 300;
             const lineHeight = 20;
             const startY = qrSize + 40;
@@ -139,7 +139,7 @@ app.post('/generate', async (req, res) => {
             }
         }
 
-        // Convert to base64
+// Base64 konvertálás
         const qrCodeWithText = canvas.toDataURL('image/png');
         log('info', 'QR code generated successfully with text');
         res.json({ qrCode: qrCodeWithText });
@@ -149,12 +149,12 @@ app.post('/generate', async (req, res) => {
     }
 });
 
-// Serve the main page
+// Főoldal kiszolgálása
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Process PDF and extract data
+// PDF feldolgozása és adatok kinyerése
 app.post('/process-pdf', upload.single('pdf'), async (req, res) => {
     try {
         if (!req.file) {
@@ -165,12 +165,12 @@ app.post('/process-pdf', upload.single('pdf'), async (req, res) => {
         const dataBuffer = req.file.buffer;
         const pdfData = await pdfParse(dataBuffer);
         
-        // Get the text content
+        // Szöveges tartalom kinyerése
         const text = pdfData.text;
         debug('Raw PDF content', { text });
         log('info', 'PDF parsed successfully');
 
-        // Initialize extracted data
+        // Kinyert adatok inicializálása
         const extractedData = {
             name: "",
             identifier: "",
@@ -182,16 +182,16 @@ app.post('/process-pdf', upload.single('pdf'), async (req, res) => {
             qrCodeId: ""
         };
 
-        // Split text into lines and process each line
+        // Szöveg sorokra bontása és feldolgozása
         const lines = text.split('\n').map(line => line.trim()).filter(line => line);
         debug('Processed lines', { lineCount: lines.length, lines });
         
         for (const line of lines) {
-            // Try to identify content based on patterns
+            // Tartalom azonosítása minták alapján
             const cleanedLine = line.trim().replace(/\s+/g, ' ');
             debug('Processing line', { original: line, cleaned: cleanedLine });
 
-            // Process each field
+            // Mezők feldolgozása
             processName(cleanedLine, extractedData) && debug('Name found', { name: extractedData.name });
             processIdentifier(cleanedLine, extractedData) && debug('Identifier found', { identifier: extractedData.identifier });
             processEmploymentType(cleanedLine, extractedData) && debug('Employment type found', { type: extractedData.employmentType });
@@ -214,7 +214,7 @@ app.post('/process-pdf', upload.single('pdf'), async (req, res) => {
     }
 });
 
-// Field processing functions
+// Mező feldolgozó függvények
 function processName(line, data) {
     if (data.name) return false;
     
@@ -242,12 +242,12 @@ function processIdentifier(line, data) {
 function processEmploymentType(line, data) {
     if (data.employmentType) return false;
     
-    // Skip if line is the identifier or name
+    // Kihagyás, ha a sor azonosító vagy név
     if (line === data.identifier || line === data.name) {
         return false;
     }
     
-    // Must be after name and identifier, but not a contract type
+    // Név és azonosító után kell lennie, de nem lehet szerződés típus
     if (data.name && 
         data.identifier && 
         !line.toLowerCase().includes('viszony') &&
@@ -286,7 +286,7 @@ function processCompany(line, data) {
 function processProjectName(line, lines, data) {
     if (data.projectName) return false;
     
-    // Find the project line index
+    // Projekt sor indexének keresése
     const projectLineIndex = lines.findIndex(l => {
         const cleanedLine = l.trim().replace(/\s+/g, ' ');
         return /\d+\s*út\/vonalszám|\d+\s*[úu]t/.test(cleanedLine);
@@ -295,15 +295,15 @@ function processProjectName(line, lines, data) {
     if (projectLineIndex >= 0) {
         debug('Found project line', { line: lines[projectLineIndex] });
         
-        // Collect project lines
+        // Projekt sorok gyűjtése
         const projectLines = [lines[projectLineIndex]];
         
-        // Look ahead for additional location lines
+        // További helyszín sorok keresése
         for (let i = projectLineIndex + 1; i < lines.length; i++) {
             const nextLine = lines[i].trim();
             debug('Checking next line', { nextLine });
             
-            // Stop if we hit any of these markers
+            // Megállás, ha ezek közül bármelyiket találjuk
             if (nextLine.includes('KFT') || 
                 nextLine.includes('ZRT') || 
                 nextLine.includes('BT') || 
@@ -321,7 +321,7 @@ function processProjectName(line, lines, data) {
                 break;
             }
             
-            // Add line to project
+            // Sor hozzáadása a projekthez
             debug('Adding line to project', { line: nextLine });
             projectLines.push(nextLine);
         }
@@ -351,61 +351,61 @@ function processQRCode(line, data) {
     }
 }
 
-// Save form data and generate business card
+// Űrlap adatok mentése és kártya generálása
 app.post('/save-data', async (req, res) => {
     try {
         const formData = req.body;
         log('info', 'Generating business card');
 
-        // Validate required fields
+        // Kötelező mezők ellenőrzése
         if (!formData.qrCodeId) {
             log('warn', 'Business card generation failed - missing QR code');
             throw new Error('QR kód tartalom megadása kötelező');
         }
         
-        // Create canvas for the business card
+        // Canvas létrehozása a kártyához
         const canvas = createCanvas(CARD_WIDTH, CARD_HEIGHT);
         const ctx = canvas.getContext('2d');
 
-        // Set background
+        // Háttér beállítása
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
 
-        // Add border
+        // Keret hozzáadása
         ctx.strokeStyle = '#000000';
         ctx.lineWidth = 2;
         ctx.strokeRect(10, 10, CARD_WIDTH - 20, CARD_HEIGHT - 20);
 
-        // Configure text settings
+        // Szöveg beállítások konfigurálása
         ctx.fillStyle = '#000000';
         ctx.font = 'bold 42px Arial';
         ctx.textBaseline = 'top';
 
-        // Calculate text area width (space available for text)
+        // Szöveg terület szélességének számítása (szöveghez elérhető hely)
         const textAreaWidth = CARD_WIDTH - QR_SIZE - (MARGIN * 3);
 
-        // Draw name (larger and bold)
+        // Név rajzolása (nagyobb és félkövér)
         ctx.font = 'bold 38px Arial';
         ctx.fillText(formData.name, MARGIN, MARGIN);
 
-        // Draw identifier
+        // Azonosító rajzolása
         ctx.font = '30px Arial';
         ctx.fillText(`Azonosító: ${formData.identifier}`, MARGIN, MARGIN + 55);
 
-        // Draw employment and contract type
+        // Foglalkoztatás és szerződés típus rajzolása
         ctx.font = '26px Arial';
         const employmentText = `${formData.employmentType} - ${formData.contractType}`;
         ctx.fillText(employmentText, MARGIN, MARGIN + 100);
 
-        // Draw company info
+        // Cég információk rajzolása
         const companyText = `${formData.companyName} (${formData.companyId})`;
         ctx.fillText(companyText, MARGIN, MARGIN + 145);
 
-        // Draw project name (wrapped with better spacing)
+        // Projekt név rajzolása (tördeléssel és jobb térközökkel)
         ctx.font = '22px Arial';
         let y = MARGIN + 190;
         
-        // Function to wrap text
+        // Szövegtördelő függvény
         function wrapText(text, maxWidth) {
             const lines = [];
             let currentLine = '';
@@ -429,13 +429,13 @@ app.post('/save-data', async (req, res) => {
             return lines;
         }
 
-        // Wrap and draw project name with proper spacing
+        // Projekt név tördelése és rajzolása megfelelő térközökkel
         const lines = wrapText(formData.projectName, textAreaWidth);
         lines.forEach((line, index) => {
             ctx.fillText(line, MARGIN, y + (index * 30));
         });
 
-        // Generate and draw QR code
+        // QR kód generálása és rajzolása
         const qrCodeData = formData.qrCodeId;
         const qrCodeDataUrl = await QRCode.toDataURL(qrCodeData, {
             width: QR_SIZE,
@@ -447,24 +447,24 @@ app.post('/save-data', async (req, res) => {
             errorCorrectionLevel: 'H'
         });
 
-        // Load and draw QR code
+        // QR kód betöltése és rajzolása
         const qrImage = await loadImage(qrCodeDataUrl);
-        // Draw QR code centered vertically and aligned to the right
+        // QR kód rajzolása függőlegesen középre és jobbra igazítva
         ctx.drawImage(qrImage, 
             CARD_WIDTH - QR_SIZE - MARGIN, 
             (CARD_HEIGHT - QR_SIZE) / 2, 
             QR_SIZE, 
             QR_SIZE);
 
-        // Convert canvas to buffer
+        // Canvas konvertálása bufferré
         const buffer = canvas.toBuffer('image/png');
 
-        // Optimize the image with sharp
+        // Kép optimalizálása sharp-pal
         const optimizedBuffer = await sharp(buffer)
             .png({ quality: 90 })
             .toBuffer();
 
-        // Convert to base64 for preview
+        // Base64 konvertálás előnézethez
         const base64Image = `data:image/png;base64,${optimizedBuffer.toString('base64')}`;
 
         log('info', 'Business card generated successfully');
@@ -478,7 +478,7 @@ app.post('/save-data', async (req, res) => {
     }
 });
 
-// Helper function to load image
+// Segédfüggvény kép betöltéséhez
 async function loadImage(src) {
     const Image = require('canvas').Image;
     return new Promise((resolve, reject) => {
@@ -489,7 +489,7 @@ async function loadImage(src) {
     });
 }
 
-app.listen(port, () => {
+app.listen(port, '0.0.0.0', () => {
     log('info', `Server started on port ${port}`);
     console.log(`Server running at http://localhost:${port}`);
 });

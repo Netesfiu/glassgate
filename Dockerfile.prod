@@ -1,0 +1,61 @@
+# Build szakasz
+FROM node:18-bullseye-slim AS builder
+
+# Produkciós környezet beállítása
+ENV NODE_ENV=production
+
+# Build függőségek telepítése
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libcairo2 \
+    libpango1.0-0 \
+    libjpeg62-turbo \
+    libgif7 \
+    build-essential \
+    python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Package fájlok másolása
+COPY package*.json ./
+
+# Csak produkciós függőségek telepítése
+RUN npm ci --only=production && \
+    npm cache clean --force
+
+# Alkalmazás fájlok másolása
+COPY . .
+
+# Produkciós szakasz
+FROM node:18-bullseye-slim
+
+# Produkciós környezet beállítása
+ENV NODE_ENV=production
+
+# Csak a szükséges futásidejű függőségek telepítése
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libcairo2 \
+    libpango1.0-0 \
+    libjpeg62-turbo \
+    libgif7 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Csak a szükséges fájlok másolása a builder szakaszból
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/server.js .
+COPY --from=builder /app/package.json .
+
+# Nem root felhasználó létrehozása
+RUN groupadd -r appgroup && useradd -r -g appgroup appuser \
+    && chown -R appuser:appgroup /app
+USER appuser
+
+# Egészségügyi ellenőrzés beállítása
+HEALTHCHECK --interval=30s --timeout=3s \
+    CMD curl -f http://localhost:3000/ || exit 1
+
+EXPOSE 3000
+CMD ["node", "server.js"]
