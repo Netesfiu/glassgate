@@ -9,6 +9,8 @@ PDF dokumentumokból QR kódokat és azonosító kártyákat generáló webalkal
 - Azonosító kártya generálás testreszabható elrendezéssel
 - Magyar nevek és céges formátumok támogatása
 - Reszponzív webes felület
+- Drag-and-drop fájl feltöltés
+- Kamera használat QR kód beolvasáshoz
 
 ## Előfeltételek
 
@@ -59,6 +61,7 @@ Az alkalmazás elérhető lesz a http://localhost:3000 címen.
 │   └── scripts/       # Kliens oldali JavaScript
 ├── server.js          # Express szerver és API végpontok
 ├── package.json       # Projekt függőségek
+├── LICENSE           # MIT licenc
 ├── Dockerfile         # Konténer konfiguráció
 └── .dockerignore      # Docker build kizárások
 ```
@@ -122,6 +125,16 @@ A naplófájlok a `logs` könyvtárban találhatók:
 - `debug.log`: Részletes fejlesztői napló
 - `app.log`: Produkciós napló (szenzitív adatok rejtve)
 
+## Közreműködés
+
+A projekt nyílt forráskódú, minden közreműködést szívesen fogadunk! A forráskód elérhető a [GitHub](https://github.com/Netesfiu/glassgate) oldalon.
+
+1. Fork-old a projektet
+2. Hozz létre egy új branch-et a fejlesztéshez
+3. Commit-old a változtatásokat
+4. Push-old a branch-et
+5. Nyiss egy Pull Request-et
+
 ## Licenc
 
-ISC
+Ez a projekt az [MIT licenc](LICENSE) alatt áll. További információért lásd a LICENSE fájlt.
