@@ -1,5 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const textInput = document.getElementById('text-input');
+    const displayText = document.getElementById('display-text');
+    const showText = document.getElementById('show-text');
     const generateBtn = document.getElementById('generate-btn');
     const qrCode = document.getElementById('qr-code');
     const downloadBtn = document.getElementById('download-btn');
@@ -15,24 +17,29 @@ document.addEventListener('DOMContentLoaded', () => {
     async function generateQRCode() {
         const text = textInput.value.trim();
         if (!text) {
-            alert('Please enter some text or URL');
+            alert('Kérem, írjon be szöveget vagy URL-t');
             return;
         }
 
         try {
             generateBtn.disabled = true;
-            generateBtn.textContent = 'Generating...';
+            generateBtn.textContent = 'Generálás...';
+
+            const requestData = {
+                text,
+                displayText: showText.checked ? displayText.value.trim() : null
+            };
 
             const response = await fetch('/generate', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ text }),
+                body: JSON.stringify(requestData),
             });
 
             if (!response.ok) {
-                throw new Error('Failed to generate QR code');
+                throw new Error('Nem sikerült generálni a QR kódot');
             }
 
             const data = await response.json();
@@ -40,11 +47,11 @@ document.addEventListener('DOMContentLoaded', () => {
             qrCode.style.display = 'block';
             downloadBtn.style.display = 'block';
         } catch (error) {
-            alert('Error generating QR code. Please try again.');
+            alert('Hiba történt a QR kód generálása során. Kérem, próbálja újra.');
             console.error('Error:', error);
         } finally {
             generateBtn.disabled = false;
-            generateBtn.textContent = 'Generate QR Code';
+            generateBtn.textContent = 'QR Kód Generálása';
         }
     }
 

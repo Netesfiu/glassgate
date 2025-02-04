@@ -76,15 +76,73 @@ app.use(express.static('public'));
 // API endpoint for QR code generation
 app.post('/generate', async (req, res) => {
     try {
-        const { text } = req.body;
+        const { text, displayText } = req.body;
         if (!text) {
             log('warn', 'QR code generation failed - missing text');
             return res.status(400).json({ error: 'Text is required' });
         }
 
-        const qrCode = await QRCode.toDataURL(text);
-        log('info', 'QR code generated successfully');
-        res.json({ qrCode });
+        // Generate QR code with larger canvas for text
+        const qrSize = 300;
+        const canvasHeight = displayText ? 400 : 350;
+        const canvas = createCanvas(350, canvasHeight);
+        const ctx = canvas.getContext('2d');
+
+        // Set white background
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Generate QR code
+        const qrCodeDataUrl = await QRCode.toDataURL(text, {
+            width: qrSize,
+            margin: 0,
+            color: {
+                dark: '#000000',
+                light: '#ffffff'
+            }
+        });
+
+        // Load and draw QR code
+        const qrImage = await loadImage(qrCodeDataUrl);
+        ctx.drawImage(qrImage, 25, 25, qrSize, qrSize);
+
+        // Add text if provided
+        if (displayText) {
+            ctx.font = 'bold 16px Arial';
+            ctx.fillStyle = '#000000';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+
+            // Word wrap text
+            const maxWidth = 300;
+            const lineHeight = 20;
+            const startY = qrSize + 40;
+
+            const words = displayText.split(' ');
+            let line = '';
+            let y = startY;
+
+            for (const word of words) {
+                const testLine = line + (line ? ' ' : '') + word;
+                const metrics = ctx.measureText(testLine);
+                
+                if (metrics.width > maxWidth && line !== '') {
+                    ctx.fillText(line, canvas.width / 2, y);
+                    line = word;
+                    y += lineHeight;
+                } else {
+                    line = testLine;
+                }
+            }
+            if (line) {
+                ctx.fillText(line, canvas.width / 2, y);
+            }
+        }
+
+        // Convert to base64
+        const qrCodeWithText = canvas.toDataURL('image/png');
+        log('info', 'QR code generated successfully with text');
+        res.json({ qrCode: qrCodeWithText });
     } catch (error) {
         log('error', 'QR code generation failed', { error });
         res.status(500).json({ error: 'Failed to generate QR code' });
