@@ -15,8 +15,7 @@ WORKDIR /app
 # Install dependencies - split this to leverage Docker cache
 COPY package*.json ./
 
-# Use npm install with modern flags to speed up installation
-RUN npm ci --omit=dev --omit=optional --no-audit
+RUN npm i
 
 # Copy source
 COPY . .
