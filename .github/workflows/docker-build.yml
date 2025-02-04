@@ -7,10 +7,14 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:  # Allow manual trigger
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     
     steps:
       - name: Checkout repository
