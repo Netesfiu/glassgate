@@ -1,17 +1,19 @@
-# Build szakasz
-FROM node:18-bullseye-slim AS builder
+# --- Build szakasz ---
+FROM node:22-bookworm-slim AS builder
 
 # Produkciós környezet beállítása
 ENV NODE_ENV=production
 
-# Build függőségek telepítése
+# Build függőségek (natív modulok: canvas, sharp)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libcairo2 \
-    libpango1.0-0 \
-    libjpeg62-turbo \
-    libgif7 \
     build-essential \
     python3 \
+    pkg-config \
+    libcairo2-dev \
+    libpango1.0-dev \
+    libjpeg62-turbo-dev \
+    libgif-dev \
+    librsvg2-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -20,42 +22,55 @@ WORKDIR /app
 COPY package*.json ./
 
 # Csak produkciós függőségek telepítése
-RUN npm ci --only=production && \
-    npm cache clean --force
+RUN npm ci --omit=dev && npm cache clean --force
 
-# Alkalmazás fájlok másolása
+# Alkalmazás fájlok másolása (a .dockerignore kizárja a felesleges fájlokat)
 COPY . .
 
-# Produkciós szakasz
-FROM node:18-bullseye-slim
+# --- Produkciós szakasz ---
+FROM node:22-bookworm-slim
 
 # Produkciós környezet beállítása
-ENV NODE_ENV=production
+ENV NODE_ENV=production \
+    PORT=3000 \
+    LOG_DIR=/app/logs
 
 # Csak a szükséges futásidejű függőségek telepítése
+# (fontconfig + DejaVu font az azonosítókártya szövegének kirajzolásához)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libcairo2 \
-    libpango1.0-0 \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
     libjpeg62-turbo \
     libgif7 \
+    libpixman-1-0 \
+    libfontconfig1 \
+    fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
+# Nem root felhasználó determinisztikus, numerikus UID/GID-del.
+# Numerikus UID esetén a Docker nem végez passwd-feloldást exec/healthcheck indulásakor,
+# így egy sérült overlay/passwd állapot nem tudja "unhealthy" állapotba tenni a konténert.
+RUN groupadd -g 10001 appgroup \
+    && useradd -u 10001 -g 10001 -M -d /app -s /usr/sbin/nologin appuser \
+    && mkdir -p /app/logs \
+    && chown -R 10001:10001 /app
+
 # Csak a szükséges fájlok másolása a builder szakaszból
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/server.js .
-COPY --from=builder /app/package.json .
+COPY --from=builder --chown=10001:10001 /app/node_modules ./node_modules
+COPY --from=builder --chown=10001:10001 /app/public ./public
+COPY --from=builder --chown=10001:10001 /app/server.js ./
+COPY --from=builder --chown=10001:10001 /app/package.json ./
 
-# Nem root felhasználó létrehozása
-RUN groupadd -r appgroup && useradd -r -g appgroup appuser \
-    && chown -R appuser:appgroup /app
-USER appuser
+USER 10001:10001
 
-# Egészségügyi ellenőrzés beállítása
-HEALTHCHECK --interval=30s --timeout=3s \
-    CMD curl -f http://localhost:3000/ || exit 1
+# Egészségügyi ellenőrzés: a node mindig elérhető a képen belül (a curl NINCS telepítve),
+# ezért node-alapú HTTP próbát használunk a /healthz végponton.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD node -e "require('http').get({host:'127.0.0.1',port:process.env.PORT||3000,path:'/healthz',timeout:4000},r=>process.exit(r.statusCode<400?0:1)).on('timeout',()=>process.exit(1)).on('error',()=>process.exit(1))"
 
 EXPOSE 3000
+STOPSIGNAL SIGTERM
 CMD ["node", "server.js"]

@@ -1,0 +1,63 @@
+# Glassgate – példa deployment (Docker Compose + Traefik)
+#
+# Éles környezetben (QNAP Container Station) a compose fájl a Container Station
+# alkalmazás-könyvtárában él, és a környezet-specifikus címeket tartalmazza.
+# Ez a fájl a javasolt, megerősített konfigurációt dokumentálja.
+services:
+  glassgate:
+    image: ghcr.io/netesfiu/glassgate:latest
+    container_name: glassgate
+    restart: unless-stopped
+    init: true
+
+    # Numerikus UID/GID: exec és healthcheck indulásakor nincs passwd-feloldás,
+    # ezért egy sérült overlay nem tudja "unhealthy" állapotba tenni a konténert
+    # (és ezzel eltüntetni a Traefik route-ot).
+    user: "10001:10001"
+
+    # Írásvédett rootfs + tmpfs a naplóknak (a napló írása nem kötelező a működéshez)
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - LOG_DIR=/tmp/logs
+
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get({host:'127.0.0.1',port:3000,path:'/healthz',timeout:4000},r=>process.exit(r.statusCode<400?0:1)).on('timeout',()=>process.exit(1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+    # Erőforrás-korlátok (a sharp/canvas műveletek memóriaigénye korlátozott)
+    mem_limit: 1g
+    memswap_limit: 1g
+    mem_reservation: 128m
+
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=backend"
+      - "traefik.http.routers.glassgate.entrypoints=websecure"
+      # A saját domain(ek) ide kerülnek:
+      - "traefik.http.routers.glassgate.rule=Host(`glassgate.example.com`) || Host(`qr.example.com`)"
+      - "traefik.http.routers.glassgate.tls=true"
+      - "traefik.http.routers.glassgate.tls.certresolver=myresolver"
+      - "traefik.http.services.glassgate.loadbalancer.server.port=3000"
+      # Watchtower (ha label-alapú módban fut; a névalapú módhoz a watchtower
+      # indítási paraméterei közé kell felvenni a "glassgate" konténernevet)
+      - "com.centurylinklabs.watchtower.enable=true"
+
+    networks:
+      - backend
+
+networks:
+  backend:
+    external: true

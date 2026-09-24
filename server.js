@@ -6,12 +6,11 @@ const multer = require('multer');
 const fs = require('fs');
 const { createCanvas, registerFont } = require('canvas');
 const sharp = require('sharp');
-const pdfParse = require('pdf-parse');
 
-// Logs könyvtár létrehozása, ha nem létezik
-const logsDir = path.join(__dirname, 'logs');
+// Logs könyvtár létrehozása, ha nem létezik (LOG_DIR felülírható, pl. read-only rootfs + tmpfs esetén)
+const logsDir = process.env.LOG_DIR || path.join(__dirname, 'logs');
 if (!fs.existsSync(logsDir)) {
-    fs.mkdirSync(logsDir);
+    fs.mkdirSync(logsDir, { recursive: true });
 }
 
 // Fejlesztői mód jelző
@@ -37,7 +36,12 @@ function log(type, message, data = {}) {
 
     // Napló bejegyzés formázása
     const logEntry = JSON.stringify(logData) + '\n';
-    fs.appendFileSync(path.join(logsDir, isDev ? 'debug.log' : 'app.log'), logEntry);
+    try {
+        fs.appendFileSync(path.join(logsDir, isDev ? 'debug.log' : 'app.log'), logEntry);
+    } catch (err) {
+        // A naplózás hibája soha ne döntse le a kérést
+        if (isDev) console.error('Log írás sikertelen:', err.message);
+    }
 
     // Fejlesztői módban konzolra is naplózás hibakereséshez
     if (isDev) {
@@ -50,6 +54,68 @@ function debug(message, data = {}) {
     if (isDev) {
         log('debug', message, data);
     }
+}
+
+// Feldolgozható PDF korlátok (erőforrás-védelem)
+const MAX_PDF_PAGES = 50;
+const MAX_PDF_BYTES = 5 * 1024 * 1024;
+
+// PDF szövegkinyerés a karbantartott pdf.js (pdfjs-dist) könyvtárral.
+// Az isEvalSupported: false letiltja a PDF-be ágyazott tartalom dinamikus kódgenerálását
+// (a régi pdf-parse 1.1.1 beágyazott pdf.js 1.10.100-át használt, ami érintett a CVE-2024-4367 osztályban).
+const PDFJS_MODULE = 'pdfjs-dist/legacy/build/pdf.mjs';
+let pdfjsLibPromise = null;
+
+function getPdfjs() {
+    if (!pdfjsLibPromise) {
+        pdfjsLibPromise = import(PDFJS_MODULE);
+    }
+    return pdfjsLibPromise;
+}
+
+async function extractPdfText(dataBuffer, maxPages = MAX_PDF_PAGES) {
+    const pdfjs = await getPdfjs();
+    const loadingTask = pdfjs.getDocument({
+        data: new Uint8Array(dataBuffer),
+        isEvalSupported: false,
+        useSystemFonts: false,
+        disableFontFace: true,
+        isOffscreenCanvasSupported: false,
+        verbosity: 0
+    });
+
+    const doc = await loadingTask.promise;
+    const numpages = doc.numPages;
+    let text = '';
+
+    try {
+        const limit = Math.min(numpages, maxPages);
+        for (let i = 1; i <= limit; i++) {
+            const page = await doc.getPage(i);
+            const content = await page.getTextContent({
+                normalizeWhitespace: false,
+                disableCombineTextItems: false
+            });
+
+            let lastY;
+            for (const item of content.items) {
+                // A jelölt tartalom (marked content) elemeknek nincs str mezőjük
+                if (typeof item.str !== 'string') continue;
+                if (lastY === item.transform[5] || lastY === undefined) {
+                    text += item.str;
+                } else {
+                    text += '\n' + item.str;
+                }
+                lastY = item.transform[5];
+            }
+            text += '\n';
+            page.cleanup();
+        }
+    } finally {
+        await loadingTask.destroy();
+    }
+
+    return { text, numpages };
 }
 
 // Szabványos bankkártya méretek 300 DPI felbontásnál
@@ -65,21 +131,56 @@ const port = process.env.PORT || 3000;
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: {
-        fileSize: 5 * 1024 * 1024 // 5MB limit
+        fileSize: 5 * 1024 * 1024, // 5MB limit
+        files: 1,
+        fields: 20
+    },
+    // Csak PDF feltöltést fogadunk el
+    fileFilter: (req, file, cb) => {
+        const isPdf = file.mimetype === 'application/pdf' || /\.pdf$/i.test(file.originalname || '');
+        if (!isPdf) {
+            return cb(new Error('Only PDF files are allowed'));
+        }
+        cb(null, true);
     }
 });
 
 // Middleware-ek
-app.use(bodyParser.json());
-app.use(express.static('public'));
+app.disable('x-powered-by');
+
+// Biztonsági fejlécek (a Traefik/Cloudflare fejlécek mellett is érvényesek)
+app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+    // A QR-beolvasó a böngésző kameráját használja, ezért a kamerát engedjük (self)
+    res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=(self)');
+    next();
+});
+
+app.use(bodyParser.json({ limit: '256kb' }));
+app.use(express.static(path.join(__dirname, 'public'), { dotfiles: 'ignore' }));
+
+// Egészségügyi végpont (Docker healthcheck / külső monitorozás) - nem ír naplót és nem számol sokat
+app.get('/healthz', (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.json({ status: 'ok', uptime: Math.round(process.uptime()) });
+});
 
 // API végpont QR kód generáláshoz
 app.post('/generate', async (req, res) => {
     try {
         const { text, displayText } = req.body;
-        if (!text) {
+        if (typeof text !== 'string' || !text.trim()) {
             log('warn', 'QR code generation failed - missing text');
             return res.status(400).json({ error: 'Text is required' });
+        }
+        // Bemeneti hossz korlát: túl nagy bemenet felesleges CPU/memória terhelés
+        if (text.length > 2000 || (displayText && String(displayText).length > 300)) {
+            log('warn', 'QR code generation failed - input too long');
+            return res.status(413).json({ error: 'Text is too long' });
         }
 
         // Generate QR code with larger canvas for text
@@ -163,7 +264,13 @@ app.post('/process-pdf', upload.single('pdf'), async (req, res) => {
         }
 
         const dataBuffer = req.file.buffer;
-        const pdfData = await pdfParse(dataBuffer);
+        if (dataBuffer.length > MAX_PDF_BYTES) {
+            log('warn', 'PDF processing failed - file too large');
+            return res.status(413).json({ error: 'File too large (max 5MB)' });
+        }
+
+        // Legfeljebb MAX_PDF_PAGES oldal feldolgozása (a dokumentumok 1-2 oldalasak) - erőforrás-korlát
+        const pdfData = await extractPdfText(dataBuffer);
         
         // Szöveges tartalom kinyerése
         const text = pdfData.text;
@@ -354,8 +461,36 @@ function processQRCode(line, data) {
 // Űrlap adatok mentése és kártya generálása
 app.post('/save-data', async (req, res) => {
     try {
-        const formData = req.body;
+        const formData = req.body || {};
         log('info', 'Generating business card');
+
+        // Bemeneti mezők típus- és hosszellenőrzése (a túl nagy bemenet felesleges CPU/memória terhelés)
+        const fieldLimits = {
+            name: 200,
+            identifier: 100,
+            employmentType: 200,
+            contractType: 200,
+            companyName: 200,
+            companyId: 100,
+            projectName: 500,
+            qrCodeId: 2000
+        };
+
+        for (const [key, maxLength] of Object.entries(fieldLimits)) {
+            const value = formData[key];
+            if (value !== undefined && value !== null && typeof value !== 'string') {
+                log('warn', 'Business card generation failed - invalid field type', { field: key });
+                return res.status(400).json({ error: `Invalid field: ${key}` });
+            }
+            if (typeof value === 'string' && value.length > maxLength) {
+                log('warn', 'Business card generation failed - field too long', { field: key });
+                return res.status(413).json({ error: `Field too long: ${key}` });
+            }
+            // Hiányzó mezők pótlása üres stringgel, hogy a canvas ne dobjon kivételt
+            if (typeof value !== 'string') {
+                formData[key] = '';
+            }
+        }
 
         // Kötelező mezők ellenőrzése
         if (!formData.qrCodeId) {
@@ -489,7 +624,42 @@ async function loadImage(src) {
     });
 }
 
-app.listen(port, '0.0.0.0', () => {
+// Multer / feltöltési hibák kezelése: JSON válasz, ne 500-as HTML hibaüzenet
+app.use((err, req, res, next) => {
+    if (!err) return next();
+
+    if (err.code === 'LIMIT_FILE_SIZE') {
+        log('warn', 'Upload rejected - file too large');
+        return res.status(413).json({ error: 'File too large (max 5MB)' });
+    }
+    if (err.message === 'Only PDF files are allowed') {
+        log('warn', 'Upload rejected - not a PDF');
+        return res.status(415).json({ error: 'Only PDF files are allowed' });
+    }
+
+    log('error', 'Unhandled request error', { error: err });
+    res.status(500).json({ error: 'Internal server error' });
+});
+
+const server = app.listen(port, '0.0.0.0', () => {
     log('info', `Server started on port ${port}`);
     console.log(`Server running at http://localhost:${port}`);
 });
+
+// Kezeletlen hibák naplózása: a folyamat ne álljon le némán
+process.on('unhandledRejection', (reason) => {
+    log('error', 'Unhandled promise rejection', { error: reason instanceof Error ? reason : new Error(String(reason)) });
+});
+
+process.on('uncaughtException', (error) => {
+    log('error', 'Uncaught exception', { error });
+});
+
+// Tiszta leállás: konténer restart / watchtower frissítés ne szakítsa meg a futó kéréseket
+function shutdown(signal) {
+    log('info', `Received ${signal}, shutting down gracefully`);
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 8000).unref();
+}
+
+['SIGTERM', 'SIGINT'].forEach((sig) => process.on(sig, () => shutdown(sig)));
